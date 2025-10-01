@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Espectrograma 3D — Samples de Armónicos (1.wav)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <!-- noUiSlider para slider doble -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.0/dist/nouislider.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f8fafc; --panel:#ffffff; --card:#ffffff;
+      --muted:#64748b; --fg:#0f172a; --brand:#0d9488;
+      --radius:14px; --shadow:0 6px 20px rgba(15,23,42,.08);
+      --border:#e2e8f0; --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);
+      font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    header{
+      height:56px;display:flex;align-items:center;justify-content:center;
+      font-weight:800;letter-spacing:.2px;color:#fff;
+      background:linear-gradient(90deg,#0ea5e9,#14b8a6 60%);box-shadow:0 2px 10px rgba(2,132,199,.15);
+    }
+    .container{margin-inline:auto;width:clamp(980px,92vw,1320px);padding:10px 16px 20px;}
+    .layout{display:grid;gap:16px;grid-template-columns:minmax(520px,1.6fr) minmax(320px,1fr);align-items:start;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+    .plot-card{padding:10px;}
+    .plot-wrap{position:relative;border-radius:12px;background:#fff;border:1px solid var(--border);padding:6px;height:520px;}
+    #plot{width:100%;height:100%}
+
+    /* HUD (minimizable) */
+    .hud{
+      position:absolute;inset:auto auto 10px 10px;
+      background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(6px);
+      border:1px solid var(--border);border-radius:12px;padding:10px 12px;
+      box-shadow:var(--shadow);min-width:240px;font-size:.88rem;color:#0f172a;
+      display:grid;gap:6px;pointer-events:auto; transition:opacity .15s ease, transform .15s ease;
+    }
+    .hud .hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+    .hud .title{font-weight:700;letter-spacing:.2px}
+    .hud .row{display:flex;justify-content:space-between;gap:10px}
+    .hud .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+    .hud-btn{
+      appearance:none;border:1px solid var(--border);background:#fff;border-radius:8px;
+      padding:4px 8px;cursor:pointer;font-weight:700;line-height:1
+    }
+    .hud.is-hidden{opacity:0;transform:scale(.98);pointer-events:none}
+    /* Botón flotante para restaurar HUD */
+    .hud-toggle{
+      position:absolute;left:10px;bottom:10px;z-index:2;
+      display:none; /* visible solo cuando HUD está minimizada */
+    }
+    .hud-toggle button{
+      appearance:none;border:1px solid var(--border);background:#fff;border-radius:999px;
+      padding:8px 12px;box-shadow:var(--shadow);cursor:pointer;font-weight:700
+    }
+    .hud-toggle.show{display:block}
+
+    .sidebar{position:sticky;top:12px;padding:14px;display:flex;flex-direction:column;gap:14px}
+    .side-title{font-weight:700;letter-spacing:.2px}
+    .section{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .label{color:#64748b;font-size:.9rem}
+    .switch{display:flex;align-items:center;gap:10px}
+    .switch input{accent-color:var(--brand);width:18px;height:18px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{border:1px solid var(--border);background:#fff;color:#0f172a;border-radius:999px;padding:6px 10px;cursor:pointer}
+    .chip[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:transparent}
+
+    /* noUiSlider */
+    #sliderF .noUi-connect { background: var(--brand); }
+    #sliderF .noUi-handle { border:1px solid var(--border); box-shadow:var(--shadow); }
+    #sliderF { margin-top:6px; margin-bottom:6px; }
+
+    /* Inputs manuales */
+    .freq-inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{color:#64748b;font-size:.85rem}
+    .field input[type="number"]{
+      width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px;
+      font-variant-numeric:tabular-nums; background:#fff;
+    }
+    .field input[type="number"]:invalid{border-color:var(--danger)}
+
+    /* Lista de armónicos */
+    .harm-list{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto;padding-right:2px}
+    .harm-item{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff;
+      cursor:pointer; transition:.15s box-shadow ease;
+    }
+    .harm-item:hover{ box-shadow:0 6px 18px rgba(15,23,42,.06); }
+    .harm-item[aria-pressed="true"]{ background: #ecfeff; border-color:#a5f3fc; }
+    .harm-item .tag{font-weight:700; font-variant-numeric:tabular-nums}
+    .harm-item .meta{color:#64748b; font-size:.9rem}
+    .harm-item .dot{width:10px;height:10px;border-radius:999px;background:#94a3b8;border:1px solid #e2e8f0}
+    .harm-item.is-off{opacity:.45}
+    .harm-item.is-out{opacity:.35; filter:grayscale(30%)}
+    .hint{color:#64748b; font-size:.85rem}
+
+    @media (max-width:980px){
+      .container{width:clamp(320px,94vw,980px)}
+      .layout{grid-template-columns:1fr}
+      .plot-wrap{height:420px}
+      .sidebar{position:relative;top:0}
+      .hud{inset:auto 10px 10px auto}
+    }
+  </style>
+</head>
+<body>
+  <header>Espectrograma 3D — Samples de Armónicos (1.wav)</header>
+
+  <main class="container">
+    <section class="layout">
+      <!-- IZQUIERDA: PLOT -->
+      <div class="card plot-card">
+        <div class="plot-wrap">
+          <div id="plot"></div>
+
+          <!-- Botón flotante para restaurar HUD cuando esté minimizada -->
+          <div class="hud-toggle" id="hudToggle">
+            <button type="button" id="btnShowHud" title="Mostrar cámara">Cam</button>
+          </div>
+
+          <!-- HUD de cámara (minimizable) -->
+          <div class="hud" id="hud" aria-live="polite">
+            <div class="hdr">
+              <div class="title">Cámara (Orbital)</div>
+              <button class="hud-btn" id="btnHideHud" title="Minimizar">–</button>
+            </div>
+            <div class="row"><span>θ Azimut</span>     <span class="mono" id="hudAz">—</span></div>
+            <div class="row"><span>φ Elevación</span>  <span class="mono" id="hudEl">—</span></div>
+            <div class="row"><span>r Distancia</span>  <span class="mono" id="hudR">—</span></div>
+            <div class="row"><span>eye.x</span>        <span class="mono" id="hudEx">—</span></div>
+            <div class="row"><span>eye.y</span>        <span class="mono" id="hudEy">—</span></div>
+            <div class="row"><span>eye.z</span>        <span class="mono" id="hudEz">—</span></div>
+            <div class="row"><span>up</span>           <span class="mono" id="hudUp">—</span></div>
+            <div class="row"><span>center</span>       <span class="mono" id="hudCtr">—</span></div>
+            <div class="row"><span>proyección</span>   <span class="mono" id="hudProj">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DERECHA: CONTROLES -->
+      <aside class="card sidebar" aria-label="Panel de controles">
+        <div class="side-title">Controles</div>
+
+        <div class="section">
+          <div class="label">Capas</div>
+          <label class="switch"><input id="chkSticks"  type="checkbox" checked> Líneas verticales</label>
+          <label class="switch"><input id="chkGrid"    type="checkbox" checked> Rejilla</label>
+          <label class="switch"><input id="chkSurface" type="checkbox"> Superficie (manto)</label>
+          <label class="switch"><input id="chkTracks"  type="checkbox"> Trayectorias (líneas)</label>
+          <label class="switch"><input id="chkZeros"   type="checkbox" checked> Ceros (imputados)</label>
+        </div>
+
+        <div class="section">
+          <div class="label">Tamaño punto</div>
+          <div class="chips" role="group" aria-label="Tamaño de punto">
+            <button class="chip" data-size="2">2</button>
+            <button class="chip" data-size="3" aria-pressed="true">3</button>
+            <button class="chip" data-size="4">4</button>
+            <button class="chip" data-size="6">6</button>
+          </div>
+        </div>
+
+        <!-- Filtro de samples -->
+        <div class="section">
+          <div class="label">Samples a mostrar</div>
+          <div class="chips" role="group" aria-label="Filtro de samples">
+            <button class="chip" data-pts="all" aria-pressed="true">Todos</button>
+            <button class="chip" data-pts="in">En trayectorias</button>
+            <button class="chip" data-pts="out">Huérfanos</button>
+          </div>
+        </div>
+
+        <!-- Slider doble -->
+        <div class="section">
+          <div class="label">Rango de frecuencia (Hz)</div>
+          <div id="sliderF"></div>
+          <div class="hint">Usa el slider o escribe valores exactos abajo.</div>
+        </div>
+
+        <!-- Inputs manuales -->
+        <div class="section">
+          <div class="label">Entrada manual</div>
+          <div class="freq-inputs">
+            <div class="field">
+              <label for="numFmin">Frecuencia mínima (Hz)</label>
+              <input id="numFmin" type="number" step="1" min="0" max="4000" value="0" />
+            </div>
+            <div class="field">
+              <label for="numFmax">Frecuencia máxima (Hz)</label>
+              <input id="numFmax" type="number" step="1" min="0" max="4000" value="4000" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="label">Proyección</div>
+          <div class="chips" role="group" aria-label="Tipo de proyección">
+            <button class="chip" data-proj="orthographic" aria-pressed="true">Ortho</button>
+            <button class="chip" data-proj="perspective">Perspectiva</button>
+          </div>
+        </div>
+
+        <!-- Lista de armónicos -->
+        <div class="section">
+          <div class="label">Armónicos detectados</div>
+          <div id="harmList" class="harm-list"></div>
+          <div class="hint">Pulsa para mostrar/ocultar cada trayectoria. Se atenúan si quedan fuera del rango.</div>
+        </div>
+
+        <div class="section" style="gap:6px">
+          <div class="label">Ayuda</div>
+          <div style="color:#334155;font-size:.9rem">
+            Rotar: arrastra · Zoom: rueda · Pan: Shift+arrastrar · Doble click: reset.<br>
+            La cámara se mantiene al cambiar capas (sin saltos).
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    // ---------- Elementos base ----------
+    const gd   = document.getElementById('plot');
+    const wrap = document.querySelector('.plot-wrap');
+    const harmListEl = document.getElementById('harmList');
+    const numFmin = document.getElementById('numFmin');
+    const numFmax = document.getElementById('numFmax');
+
+    // HUD refs
+    const hud   = document.getElementById('hud');
+    const btnHideHud = document.getElementById('btnHideHud');
+    const hudToggle  = document.getElementById('hudToggle');
+    const btnShowHud = document.getElementById('btnShowHud');
+
+    const hudAz = document.getElementById('hudAz');
+    const hudEl = document.getElementById('hudEl');
+    const hudR  = document.getElementById('hudR');
+    const hudEx = document.getElementById('hudEx');
+    const hudEy = document.getElementById('hudEy');
+    const hudEz = document.getElementById('hudEz');
+    const hudUp = document.getElementById('hudUp');
+    const hudCtr= document.getElementById('hudCtr');
+    const hudProj=document.getElementById('hudProj');
+
+    // Minimizar / restaurar HUD
+    btnHideHud.addEventListener('click', ()=>{
+      hud.classList.add('is-hidden');
+      hudToggle.classList.add('show');
+    });
+    btnShowHud.addEventListener('click', ()=>{
+      hud.classList.remove('is-hidden');
+      hudToggle.classList.remove('show');
+    });
+
+    // Datos globales
+    let X=[], Y=[], Z=[], TRACKS=[], TRACK_TRACE_INDICES=[];
+    const FREQ_MIN = 0, FREQ_MAX = 4000;
+
+    // Estado de filtro actual
+    let FILTER_MODE = 'all'; // 'all' | 'in' | 'out'
+
+    // ---------- Utilidades ----------
+    const d2 = v => Number.isFinite(v) ? v.toFixed(2) : '—';
+    const normDeg = rad => ((rad*180/Math.PI)%360 + 360) % 360;
+    const deepCopy = (o)=> JSON.parse(JSON.stringify(o));
+    const median = arr => { const a = arr.slice().sort((x,y)=>x-y); const n=a.length; return n? (n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2) : NaN; };
+    const clamp = (v, lo, hi)=> Math.min(hi, Math.max(lo, v));
+    function debounce(fn, ms=200){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; }
+
+    function cartesianToSpherical(eye){
+      const x=eye?.x??0, y=eye?.y??0, z=eye?.z??0;
+      const r = Math.hypot(x,y,z) || 0;
+      const az = r ? Math.atan2(y,x) : 0;
+      const el = r ? Math.asin(z/(r||1)) : 0;
+      return { r, azDeg:normDeg(az), elDeg: el*180/Math.PI };
+    }
+    function updateHUDFromCam(cam){
+      if(!cam?.eye) return;
+      const {r, azDeg, elDeg} = cartesianToSpherical(cam.eye);
+      hudAz.textContent = d2(azDeg)+'°';
+      hudEl.textContent = d2(elDeg)+'°';
+      hudR.textContent  = d2(r);
+      hudEx.textContent = d2(cam.eye.x);
+      hudEy.textContent = d2(cam.eye.y);
+      hudEz.textContent = d2(cam.eye.z);
+      const up = cam.up || {x:0,y:0,z:1}, ctr = cam.center || {x:0,y:0,z:0};
+      hudUp.textContent  = `(${d2(up.x)}, ${d2(up.y)}, ${d2(up.z)})`;
+      hudCtr.textContent = `(${d2(ctr.x)}, ${d2(ctr.y)}, ${d2(ctr.z)})`;
+      hudProj.textContent= cam.projection?.type || '—';
+    }
+    function fitPlotHeight(){ gd.style.height = wrap.clientHeight + 'px'; if (gd._fullLayout) Plotly.Plots.resize(gd); }
+    window.addEventListener('resize', fitPlotHeight);
+
+    // ---------- Cámara persistente ----------
+    const DEFAULT_CAM = { eye:{x:2.1,y:2.1,z:1.2}, center:{x:0,y:0,z:0}, up:{x:0,y:0,z:1}, projection:{type:'orthographic'} };
+    let CAM = deepCopy(DEFAULT_CAM);
+    let PROGRAMMATIC = false;
+
+    function applyCameraNow(){
+      if(!CAM) return;
+      PROGRAMMATIC = true;
+      Plotly.relayout(gd, {'scene.camera': CAM})
+        .then(()=> requestAnimationFrame(()=> Plotly.relayout(gd, {'scene.camera': CAM})))
+        .finally(()=>{ PROGRAMMATIC=false; updateHUDFromCam(CAM); ensureOrbitIfNeeded(CAM); });
+    }
+    function isAxisAlignedUp(up){
+      const v = [Math.abs(up?.x||0), Math.abs(up?.y||0), Math.abs(up?.z||0)];
+      return v.filter(x=>x>0).length===1;
+    }
+    function ensureOrbitIfNeeded(cam){
+      const up = cam?.up || {};
+      const needOrbit = !isAxisAlignedUp(up);
+      const currentDrag = gd?._fullLayout?.scene?.dragmode;
+      if (needOrbit && currentDrag!=='orbit'){
+        Plotly.relayout(gd, {'scene.dragmode':'orbit'});
+      }
+    }
+    function readLiveCamera(){
+      const sceneGL = gd?._fullLayout?.scene?._scene;
+      if (sceneGL && typeof sceneGL.getCamera === 'function'){
+        const c = sceneGL.getCamera();
+        return { eye: c.eye, center: c.center, up: c.up, projection: gd?._fullLayout?.scene?.camera?.projection || CAM.projection };
+      }
+      return deepCopy(gd?._fullLayout?.scene?.camera || CAM);
+    }
+    let liveRAF = null, lastKey = '';
+    const keyOf = (cam)=> cam && cam.eye ? [cam.eye.x,cam.eye.y,cam.eye.z].map(v=> Math.round((v||0)*1000)/1000 ).join(',') : '';
+    function startLiveLoop(){
+      if (liveRAF !== null) return;
+      const step = ()=>{ const live = readLiveCamera(); const k = keyOf(live);
+        if (k !== lastKey){ lastKey = k; CAM = live; updateHUDFromCam(CAM); }
+        liveRAF = requestAnimationFrame(step);
+      };
+      liveRAF = requestAnimationFrame(step);
+    }
+    function stopLiveLoop(){ if (liveRAF !== null){ cancelAnimationFrame(liveRAF); liveRAF = null; CAM = readLiveCamera(); updateHUDFromCam(CAM); } }
+
+    // ---------- Superficie ligera ----------
+    function buildSurfaceFromPeaks(X,Y,Z,nx=60,ny=60,fmin=0,fmax=4000,floorDb=-120){
+      const tMin = Math.min(...X), tMax = Math.max(...X);
+      const dx = (tMax - tMin) / Math.max(1, nx-1);
+      const dy = (fmax - fmin) / Math.max(1, ny-1);
+      const floor = floorDb - 1;
+      const Zgrid = Array.from({length: ny}, () => Array(nx).fill(floor));
+      for (let i=0;i<X.length;i++){
+        const t=X[i], f=Y[i], v=Z[i]; if (f<fmin || f>fmax) continue;
+        const ix = Math.min(nx-1, Math.max(0, Math.round((t - tMin)/dx)));
+        const iy = Math.min(ny-1, Math.max(0, Math.round((f - fmin)/dy)));
+        if (v > Zgrid[iy][ix]) Zgrid[iy][ix] = v;
+      }
+      const xAxis = Array.from({length: nx}, (_,k)=> tMin + k*dx);
+      const yAxis = Array.from({length: ny}, (_,k)=> fmin + k*dy);
+      return {xAxis, yAxis, Zgrid};
+    }
+
+    // ---------- Armónicos ----------
+    function computeNominalHz(track, floorDb){
+      const hz = [];
+      const n = Math.min(track.freqs?.length||0, track.mags?.length||0);
+      for (let i=0;i<n;i++){ if (track.mags[i] > floorDb + 1e-6) hz.push(track.freqs[i]); }
+      if (!hz.length && (track.freqs?.length)) return median(track.freqs);
+      return median(hz);
+    }
+    function renderHarmonicsList(floorDb, fmin, fmax){
+      harmListEl.innerHTML = '';
+      TRACKS.forEach((tr, k)=>{
+        const f0 = computeNominalHz(tr, floorDb);
+        const inRange = f0>=fmin && f0<=fmax;
+        const li = document.createElement('button');
+        li.className = 'harm-item' + (inRange ? '' : ' is-out');
+        li.type = 'button';
+        li.dataset.index = k.toString();
+        li.setAttribute('aria-pressed', tr.__visible ? 'true' : 'false');
+
+        const dot = document.createElement('span'); dot.className='dot';
+        const trIdx = TRACK_TRACE_INDICES[k];
+        const color = gd?.data?.[trIdx]?.line?.color;
+        if (color) dot.style.background = color;
+
+        const left = document.createElement('div');
+        left.style.display='flex'; left.style.alignItems='center'; left.style.gap='8px';
+        const tag = document.createElement('span'); tag.className='tag'; tag.textContent = `H${k+1}`;
+        left.appendChild(dot); left.appendChild(tag);
+
+        const right = document.createElement('div');
+        right.className='meta';
+        const npts = (tr.times?.length||0);
+        right.textContent = `~ ${Math.round(f0)} Hz · ${npts} samples`;
+
+        li.appendChild(left); li.appendChild(right);
+        harmListEl.appendChild(li);
+
+        li.addEventListener('click', async ()=>{
+          const idx = TRACK_TRACE_INDICES[k];
+          if (idx==null) return;
+          const globalOn = document.getElementById('chkTracks').checked;
+          if (!globalOn) return;
+          const now = gd.data[idx].visible === true || gd.data[idx].visible === 'true';
+          const newVis = !now;
+          await Plotly.restyle(gd, {visible: newVis}, [idx]);
+          tr.__visible = newVis;
+          li.setAttribute('aria-pressed', newVis ? 'true' : 'false');
+        });
+      });
+
+      const glb = document.getElementById('chkTracks').checked;
+      harmListEl.querySelectorAll('.harm-item').forEach(el=>{ el.classList.toggle('is-off', !glb); });
+    }
+
+    // Helpers de rango
+    function getRangeFromUI(){ return { fmin:+numFmin.value, fmax:+numFmax.value }; }
+    function setRangeToUI(fmin, fmax){ numFmin.value = Math.round(fmin); numFmax.value = Math.round(fmax); }
+
+    function sortTrackByTimePreserve(tr){
+      const idx = (tr.times||[]).map((_,i)=>i).sort((a,b)=> Number(tr.times[a]) - Number(tr.times[b]));
+      const out = {...tr};
+      out.times = idx.map(i=> Number(tr.times[i]));
+      out.freqs = idx.map(i=> Number(tr.freqs[i]));
+      out.mags  = idx.map(i=> Number(tr.mags[i]));
+      return out;
+    }
+
+    function segmentWithNulls(tr, { floorDb=-1e-9, maxGapSec=0.15 } = {}){
+      const T=[], F=[], M=[];
+      for(let i=0;i<tr.times.length;i++){
+        const t = tr.times[i], f = tr.freqs[i], m = tr.mags[i];
+        const bad = !Number.isFinite(t) || !Number.isFinite(f) || !Number.isFinite(m) || (m <= floorDb);
+        const gap = i>0 ? Math.abs(tr.times[i]-tr.times[i-1]) : 0;
+        if (i>0 && (gap > maxGapSec)) { T.push(null); F.push(null); M.push(null); }
+        if (bad){ T.push(null); F.push(null); M.push(null); }
+        else { T.push(t); F.push(f); M.push(m); }
+      }
+      return { times:T, freqs:F, mags:M };
+    }
+
+    function setCheckbox(id, checked){
+      const el = document.getElementById(id);
+      if (el) el.checked = !!checked;
+    }
+    async function applyFilterMode(mode, {animateCam=true} = {}){
+      FILTER_MODE = mode;
+
+      const iInPts  = gd.data.findIndex(t=>t.uid==='points_in');
+      const iOutPts = gd.data.findIndex(t=>t.uid==='points_out');
+      const sticksInIdx  = gd.data.findIndex(t=>t.uid==='sticks_in');
+      const sticksOutIdx = gd.data.findIndex(t=>t.uid==='sticks_out');
+      const zerosIdx = gd.data.findIndex(t=>t.uid==='zeros');
+      const surfIdx  = gd.data.findIndex(t=>t.uid==='surface');
+
+      const trackIndices = TRACK_TRACE_INDICES;
+
+      let visIn = true, visOut = true;
+      if (mode==='in'){ visIn = true; visOut = false; }
+      if (mode==='out'){ visIn = false; visOut = true; }
+
+      await Plotly.restyle(gd, {visible: visIn ? true : 'legendonly'}, [iInPts]);
+      await Plotly.restyle(gd, {visible: visOut? true : 'legendonly'}, [iOutPts]);
+
+      const chkSticks = document.getElementById('chkSticks').checked;
+      await Plotly.restyle(gd, {visible: (chkSticks && (mode!=='out')) ? true : false}, [sticksInIdx]);
+      await Plotly.restyle(gd, {visible: (chkSticks && (mode!=='in'))  ? true : false}, [sticksOutIdx]);
+
+      if (mode==='out'){
+        setCheckbox('chkTracks', false);
+        setCheckbox('chkZeros',  false);
+        setCheckbox('chkSurface',false);
+        if (trackIndices.length) await Plotly.restyle(gd, {visible:false}, trackIndices);
+        if (zerosIdx>=0) await Plotly.restyle(gd, {visible:false}, [zerosIdx]);
+        if (surfIdx>=0)  await Plotly.restyle(gd, {visible:false},  [surfIdx]);
+      } else if (mode==='in'){
+        setCheckbox('chkTracks', true);
+        if (trackIndices.length) await Plotly.restyle(gd, {visible:true}, trackIndices);
+
+        const chkZeros = document.getElementById('chkZeros').checked;
+        if (zerosIdx>=0) await Plotly.restyle(gd, {visible: chkZeros ? true : 'legendonly'}, [zerosIdx]);
+        const chkSurf = document.getElementById('chkSurface').checked;
+        if (surfIdx>=0) await Plotly.restyle(gd, {visible: chkSurf ? true : false}, [surfIdx]);
+      } else {
+        const chkTracks = document.getElementById('chkTracks').checked;
+        const chkZeros  = document.getElementById('chkZeros').checked;
+        const chkSurf   = document.getElementById('chkSurface').checked;
+
+        if (trackIndices.length) await Plotly.restyle(gd, {visible: chkTracks ? true : false}, trackIndices);
+        if (zerosIdx>=0) await Plotly.restyle(gd, {visible: chkZeros ? true : 'legendonly'}, [zerosIdx]);
+        if (surfIdx>=0)  await Plotly.restyle(gd, {visible: chkSurf ? true : false}, [surfIdx]);
+      }
+
+      if (animateCam) applyCameraNow();
+    }
+
+    (async function init(){
+      // 1) Datos del backend
+      const [labeled, payload] = await Promise.all([
+        fetch('/data_labeled').then(r=>r.json()),
+        fetch('/tracks').then(r=>r.json())
+      ]);
+
+      const PIN  = labeled.points_in_tracks  || [];
+      const POUT = labeled.points_outliers   || [];
+      const floorDb = payload.floor_db ?? labeled.floor_db ?? -110;
+
+      // Nubes combinadas para utilidades (superficie)
+      X = [...PIN, ...POUT].map(p=>p.time);
+      Y = [...PIN, ...POUT].map(p=>p.freq);
+      Z = [...PIN, ...POUT].map(p=>p.mag);
+
+      // Tracks laterales y ORDEN por tiempo preservando metadatos (zeros/full)
+      TRACKS = (payload.tracks || []).map(sortTrackByTimePreserve);
+      const timesGrid = payload.times_grid || labeled.times_grid || [];
+
+      // 2) Puntos separados (renombrados a "Samples")
+      const tracePointsIn = {
+        uid:'points_in', x: PIN.map(p=>p.time), y: PIN.map(p=>p.freq), z: PIN.map(p=>p.mag),
+        type:'scatter3d', mode:'markers',
+        marker:{ size:3, opacity:0.95, color:'#10b981' }, // verde
+        name:'Samples en trayectorias', visible:true
+      };
+      const tracePointsOut = {
+        uid:'points_out', x: POUT.map(p=>p.time), y: POUT.map(p=>p.freq), z: POUT.map(p=>p.mag),
+        type:'scatter3d', mode:'markers',
+        marker:{ size:3, opacity:0.85, color:'#f59e0b' }, // ámbar
+        name:'Samples huérfanos', visible:true
+      };
+
+      // 2b) Sticks separados
+      const sticksIn = {
+        uid:'sticks_in', type:'scatter3d',
+        x: tracePointsIn.x, y: tracePointsIn.y, z: tracePointsIn.z, mode:'markers',
+        marker:{ size:0.1, opacity:0 },
+        error_z:{ type:'data', symmetric:false, array:tracePointsIn.x.map(()=>0), arrayminus:tracePointsIn.z.map(v=>v - floorDb), visible:true, width:2 },
+        showlegend:false, name:'Líneas (in)', visible:true
+      };
+      const sticksOut = {
+        uid:'sticks_out', type:'scatter3d',
+        x: tracePointsOut.x, y: tracePointsOut.y, z: tracePointsOut.z, mode:'markers',
+        marker:{ size:0.1, opacity:0 },
+        error_z:{ type:'data', symmetric:false, array:tracePointsOut.x.map(()=>0), arrayminus:tracePointsOut.z.map(v=>v - floorDb), visible:true, width:2 },
+        showlegend:false, name:'Líneas (out)', visible:true
+      };
+
+      // Ceros (de tracks)
+      const zerosX=[], zerosY=[], zerosZ=[];
+      TRACKS.forEach(tr=>{
+        if (tr.full_freqs && tr.full_mags && timesGrid?.length === tr.full_mags.length){
+          for(let i=0;i<timesGrid.length;i++){
+            if (tr.full_mags[i] <= floorDb + 1e-6){
+              zerosX.push(timesGrid[i]); zerosY.push(tr.full_freqs[i]); zerosZ.push(tr.full_mags[i]);
+            }
+          }
+        } else if (tr.zeros_times){
+          for(let i=0;i<tr.zeros_times.length;i++){
+            zerosX.push(tr.zeros_times[i]); zerosY.push(tr.zeros_freqs[i]); zerosZ.push(tr.zeros_mags[i]);
+          }
+        }
+      });
+      const traceZeros = {
+        uid:'zeros', x:zerosX, y:zerosY, z:zerosZ, type:'scatter3d', mode:'markers',
+        marker:{ size:2, opacity:0.9 }, showlegend:false, name:'Ceros', visible:true
+      };
+
+      // 3) Trayectorias: líneas rectas
+      TRACKS.forEach(tr=> tr.__visible = false);
+      const trackTraces = TRACKS.map((tr,k)=>{
+        const seg = segmentWithNulls(tr, { floorDb: floorDb ?? -120, maxGapSec: 0.15 });
+        return {
+          uid:`track-${k+1}`, x:seg.times, y:seg.freqs, z:seg.mags,
+          type:'scatter3d', mode:'lines+markers',
+          connectgaps:false, line:{ width:3 }, marker:{ size:2, opacity:0.9 },
+          showlegend:false, name:`Trayectoria ${k+1}`, visible:false
+        };
+      });
+
+      // 4) Layout/Config
+      const layout = {
+        paper_bgcolor:'#fff', plot_bgcolor:'#fff',
+        margin:{l:8,r:8,b:12,t:6},
+        uirevision:'LOCKED_STATE',
+        scene:{
+          uirevision:'LOCKED_STATE',
+          dragmode:'orbit',
+          domain:{x:[0.10,0.98], y:[0.08,0.98]},
+          xaxis:{title:'Tiempo (s)', backgroundcolor:'#fff', gridcolor:'#e2e8f0',
+                 autorange:false, range:[Math.min(...X), Math.max(...X)],
+                 tickfont:{size:11,color:'#334155'}, titlefont:{size:12,color:'#0f172a'}},
+          yaxis:{title:'Frecuencia (Hz)', backgroundcolor:'#fff', gridcolor:'#e2e8f0',
+                 autorange:false, range:[FREQ_MIN, FREQ_MAX],
+                 tickfont:{size:11,color:'#334155'}, titlefont:{size:12,color:'#0f172a'}},
+          zaxis:{title:'Magnitud (dB)', backgroundcolor:'#fff', gridcolor:'#e2e8f0',
+                 autorange:false, range:[floorDb, Math.max(...Z)+5],
+                 tickfont:{size:11,color:'#334155'}, titlefont:{size:12,color:'#0f172a'}},
+          aspectmode:'manual', aspectratio:{x:1,y:1,z:.8},
+          camera: deepCopy(DEFAULT_CAM)
+        },
+        showlegend:true,
+        legend:{x:0.99,y:0.99,xanchor:'right',yanchor:'top',font:{size:12,color:'#0f172a'}}
+      };
+      const config = { responsive:true, displaylogo:false, doubleClick:false, scrollZoom:true, displayModeBar:true };
+
+      // 5) Render inicial
+      const fitPlotHeight = ()=>{ gd.style.height = wrap.clientHeight + 'px'; if (gd._fullLayout) Plotly.Plots.resize(gd); };
+      fitPlotHeight();
+      await Plotly.newPlot(
+        gd,
+        [tracePointsIn, tracePointsOut, sticksIn, sticksOut, traceZeros, ...trackTraces],
+        layout, config
+      );
+
+      // Índices auxiliares
+      TRACK_TRACE_INDICES = gd.data.map((tr,i)=> tr.uid?.startsWith?.('track-') ? i : -1).filter(i=>i>=0);
+
+      // Cámara y HUD
+      CAM = deepCopy(gd._fullLayout.scene.camera || DEFAULT_CAM);
+      updateHUDFromCam(CAM); ensureOrbitIfNeeded(CAM);
+
+      // 6) Superficie (preparada y oculta)
+      const surf0 = buildSurfaceFromPeaks(X,Y,Z,60,60,FREQ_MIN,FREQ_MAX,floorDb);
+      const traceSurface = {
+        uid:'surface', type:'surface', x:surf0.xAxis, y:surf0.yAxis, z:surf0.Zgrid,
+        colorscale:'Viridis', showscale:false, opacity:0.7, name:'Superficie', visible:false
+      };
+      await Plotly.addTraces(gd, traceSurface);
+
+      // 7) Eventos de cámara
+      gd.on('plotly_relayouting', ()=>{ if(!PROGRAMMATIC){ CAM = readLiveCamera(); updateHUDFromCam(CAM); } });
+      gd.on('plotly_relayout',     ()=>{ if(!PROGRAMMATIC){ CAM = readLiveCamera(); updateHUDFromCam(CAM); } });
+      const plotRoot = gd;
+      ['pointerdown','touchstart','wheel'].forEach(ev=>{ plotRoot.addEventListener(ev, ()=> startLiveLoop(), {passive:true}); });
+      ['pointerup','pointercancel','touchend','mouseleave','blur'].forEach(ev=>{ plotRoot.addEventListener(ev, ()=> stopLiveLoop(), {passive:true}); });
+
+      // ========= Slider doble =========
+      const sliderF = document.getElementById('sliderF');
+      noUiSlider.create(sliderF, {
+        start: [FREQ_MIN, FREQ_MAX],
+        connect: true,
+        step: 1,
+        range: { min: FREQ_MIN, max: FREQ_MAX },
+        tooltips: false
+      });
+
+      sliderF.noUiSlider.on('update', async (values) => {
+        const fmin = Math.round(+values[0]), fmax = Math.round(+values[1]);
+        setRangeToUI(fmin, fmax);
+        await Plotly.relayout(gd, {'scene.yaxis.range':[fmin, fmax]});
+        const surfIndex = gd.data.findIndex(t=>t.uid==='surface');
+        if (surfIndex >= 0 && gd.data[surfIndex].visible){
+          const s = buildSurfaceFromPeaks(X,Y,Z,60,60,fmin,fmax,floorDb);
+          await Plotly.restyle(gd, {x:[s.xAxis], y:[s.yAxis], z:[s.Zgrid]}, [surfIndex]);
+        }
+        renderHarmonicsList(floorDb, fmin, fmax);
+      });
+
+      // Inputs manuales → slider
+      const applyManual = (()=>{
+        let t; return ()=>{ clearTimeout(t); t=setTimeout(()=>{
+          let fmin = clamp(+numFmin.value || 0, FREQ_MIN, FREQ_MAX);
+          let fmax = clamp(+numFmax.value || 0, FREQ_MIN, FREQ_MAX);
+          if (fmin >= fmax){ const mid=(fmin+fmax)/2; fmin=Math.floor(Math.max(FREQ_MIN, mid-1)); fmax=Math.ceil(Math.min(FREQ_MAX, mid+1)); }
+          setRangeToUI(fmin, fmax);
+          sliderF.noUiSlider.set([fmin, fmax]);
+        },250); };
+      })();
+      numFmin.addEventListener('input', applyManual);
+      numFmax.addEventListener('input', applyManual);
+
+      // ========= Lista de armónicos =========
+      renderHarmonicsList(floorDb, FREQ_MIN, FREQ_MAX);
+
+      // ====== CONTROLES ======
+      document.getElementById('chkGrid').addEventListener('change', (e)=>{
+        const gc = e.target.checked ? '#e2e8f0' : 'rgba(0,0,0,0)';
+        PROGRAMMATIC = true;
+        Plotly.relayout(gd, {
+          'scene.xaxis.gridcolor': gc,
+          'scene.yaxis.gridcolor': gc,
+          'scene.zaxis.gridcolor': gc
+        }).finally(()=>{ PROGRAMMATIC=false; applyCameraNow(); });
+      });
+
+      // Control de sticks (dos trazas)
+      document.getElementById('chkSticks').addEventListener('change', async (e)=>{
+        const on = e.target.checked;
+        const iIn  = gd.data.findIndex(t=>t.uid==='sticks_in');
+        const iOut = gd.data.findIndex(t=>t.uid==='sticks_out');
+        PROGRAMMATIC = true;
+        await Plotly.restyle(gd, {visible: (on && FILTER_MODE!=='out') ? true : false}, [iIn]);
+        await Plotly.restyle(gd, {visible: (on && FILTER_MODE!=='in')  ? true : false}, [iOut]);
+        PROGRAMMATIC = false; applyCameraNow();
+      });
+
+      document.getElementById('chkZeros').addEventListener('change', async (e)=>{
+        const idx = gd.data.findIndex(t=>t.uid==='zeros'); if (idx<0) return;
+        PROGRAMMATIC = true;
+        if (FILTER_MODE==='out'){
+          await Plotly.restyle(gd, {visible:false}, [idx]);
+        } else {
+          await Plotly.restyle(gd, {visible: e.target.checked ? true : 'legendonly'}, [idx]);
+        }
+        PROGRAMMATIC = false; applyCameraNow();
+      });
+
+      document.getElementById('chkTracks').addEventListener('change', async (e)=>{
+        const indices = TRACK_TRACE_INDICES;
+        PROGRAMMATIC = true;
+        const on = e.target.checked && FILTER_MODE!=='out';
+        await Plotly.restyle(gd, {visible: on ? true : false}, indices);
+        PROGRAMMATIC = false; applyCameraNow();
+        harmListEl.querySelectorAll('.harm-item').forEach(el=> el.classList.toggle('is-off', !on));
+        if (!on) TRACKS.forEach(tr=> tr.__visible=false);
+      });
+
+      document.getElementById('chkSurface').addEventListener('change', async (e)=>{
+        const idx = gd.data.findIndex(t=>t.uid==='surface'); if (idx<0) return;
+        PROGRAMMATIC = true;
+        const {fmin, fmax} = getRangeFromUI();
+        if (e.target.checked && FILTER_MODE!=='out'){
+          const s = buildSurfaceFromPeaks(X,Y,Z,60,60,fmin,fmax,floorDb);
+          await Plotly.restyle(gd, {x:[s.xAxis], y:[s.yAxis], z:[s.Zgrid], visible:true}, [idx]);
+        } else {
+          await Plotly.restyle(gd, {visible:false}, [idx]);
+        }
+        PROGRAMMATIC = false; applyCameraNow();
+      });
+
+      // Tamaño de punto (aplica a ambas nubes)
+      document.querySelectorAll('.chip[data-size]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          document.querySelectorAll('.chip[data-size]').forEach(b=>b.removeAttribute('aria-pressed'));
+          btn.setAttribute('aria-pressed','true');
+          const size = +btn.dataset.size;
+          const iIn  = gd.data.findIndex(t=>t.uid==='points_in');
+          const iOut = gd.data.findIndex(t=>t.uid==='points_out');
+          PROGRAMMATIC = true;
+          if (iIn>=0)  await Plotly.restyle(gd, {'marker.size': size}, [iIn]);
+          if (iOut>=0) await Plotly.restyle(gd, {'marker.size': size}, [iOut]);
+          PROGRAMMATIC = false; applyCameraNow();
+        });
+      });
+
+      // Proyección cámara
+      document.querySelectorAll('.chip[data-proj]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          document.querySelectorAll('.chip[data-proj]').forEach(b=>b.removeAttribute('aria-pressed'));
+          btn.setAttribute('aria-pressed','true');
+          const type = btn.dataset.proj;
+          CAM.projection = {type};
+          PROGRAMMATIC = true; await Plotly.relayout(gd, {'scene.camera.projection.type': type});
+          PROGRAMMATIC = false; updateHUDFromCam(CAM);
+        });
+      });
+
+      // Filtro de samples (sincroniza capas)
+      document.querySelectorAll('.chip[data-pts]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          document.querySelectorAll('.chip[data-pts]').forEach(b=>b.removeAttribute('aria-pressed'));
+          btn.setAttribute('aria-pressed','true');
+          const mode = btn.dataset.pts; // 'all' | 'in' | 'out'
+          if (mode==='out'){
+            setCheckbox('chkTracks', false);
+            setCheckbox('chkZeros',  false);
+          } else if (mode==='in'){
+            setCheckbox('chkTracks', true);
+          }
+          await applyFilterMode(mode);
+        });
+      });
+
+      // Estado inicial
+      await applyFilterMode('all', {animateCam:false});
+    })();
+  </script>
+</body>
+</html>
